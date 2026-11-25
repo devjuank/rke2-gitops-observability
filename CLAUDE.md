@@ -45,7 +45,8 @@ If the plan and the spec ever conflict, the spec wins: flag the conflict to me. 
 - **Kubernetes YAML:** plain, readable, with short comments explaining non-obvious choices. Kustomize for the app. Pin image tags to `sha-<short>`, never `latest`, in `deploy/app`. Always set resource requests/limits, securityContext (non-root, read-only root fs, no privilege escalation) and a `RollingUpdate` strategy with `maxSurge: 1`, `maxUnavailable: 0`.
 - **RKE2 add-ons:** kube-prometheus-stack and Argo CD are declared as `HelmChart` resources (helm.cattle.io/v1), applied with `kubectl apply` by `make deploy` and reconciled by RKE2's helm-controller. Pin chart versions.
 - **Grafana dashboard:** JSON in a ConfigMap labeled `grafana_dashboard: "1"`.
-- **CI/CD:** GitHub Actions triggers on `paths: ["app/**"]` only (avoids loops with the bot's tag-bump commit). Least-privilege permissions (`contents: write`, `packages: write`), built-in `GITHUB_TOKEN`.
+- **CI/CD:** `main` is protected: every change lands through a PR with the `checks` workflow passing (squash merge). The release workflow triggers on `paths: ["app/**"]` only (no loop with the deploy PR, which only touches `deploy/app`). Least privilege: the image is pushed with the built-in `GITHUB_TOKEN` (`packages: write`); the deploy PR is opened with a short-lived GitHub App token (secrets `RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`), because PRs opened with `GITHUB_TOKEN` don't trigger the required checks.
+- **Git workflow:** never push to `main`. One branch and one PR per step; open it with `gh pr create`, wait for checks, merge only with my OK.
 - **Secrets:** none in the repo. Grafana's admin password goes in a Kubernetes Secret created outside Git or a documented default for local use only, and the README says so.
 
 ## Documentation

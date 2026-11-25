@@ -166,13 +166,13 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 - Argo CD adopts resources that already exist with the same names, so switching an existing cluster from `kubectl apply` to Argo CD doesn't recreate the pods.
 - The admin password is the one Argo CD generates at install (`argocd-initial-admin-secret`); nothing is stored in Git.
 
-### 9b. Continuous deployment: CI commits the new image tag, Argo CD deploys
+### 9b. Continuous deployment: CI opens a deploy PR with the new image tag, Argo CD deploys
 
-**Chosen:** on every push that touches `app/`, GitHub Actions runs the tests, builds and pushes a multi-arch image tagged with the commit SHA, then runs `kustomize edit set image` and commits the new tag to `deploy/app`. Argo CD sees the Git change and rolls it out.
+**Chosen:** `main` is protected (a ruleset requires a PR with the `checks` workflow passing, squash merge only, no force-push or deletion, no bypass). On every merge that touches `app/`, the release workflow runs the checks, builds and pushes a multi-arch image tagged with the commit SHA, runs `kustomize edit set image` in `deploy/app`, and opens a **deploy PR** with auto-merge. When its checks pass it merges, and Argo CD rolls it out.
 
 **Why**
 - End-to-end CD without GitHub ever reaching the cluster. The VM can stay private on the laptop, and the same model works for clusters behind firewalls (like on-prem RKE2).
-- Every deployment is a Git commit: auditable, reviewable, and rolled back with `git revert`.
+- Every deployment is a pull request and a commit on `main`: auditable, validated by the same checks as any other change, and rolled back by reverting it.
 - Immutable SHA tags instead of `latest`, so each running pod is traceable to an exact build.
 - It's the most common GitOps pattern. No extra components to run.
 
@@ -181,9 +181,14 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 - **Argo CD Image Updater:** watches the registry and updates tags automatically. It's elegant, but it's another controller to install and configure (registry access, write-back credentials). It's a reasonable next step at scale.
 - **Exposing the Kubernetes API to GitHub:** not acceptable from a security point of view.
 
+- **Bot pushes the tag straight to `main`** (the original plan): simplest, but incompatible with a protected `main`, and the bump would skip the checks.
+- **Bypass for the bot in the ruleset:** `github-actions[bot]` can't reliably be added as a bypass actor on a personal repository, and a bypass would let any workflow with `contents: write` skip the protection.
+
 **Details**
-- The workflow filters on `paths: ["app/**"]`, so the bot's commit to `deploy/` doesn't trigger another build (no loop).
-- Permissions are least-privilege: `contents: write` and `packages: write` only, using the built-in `GITHUB_TOKEN`.
+- The release workflow filters on `paths: ["app/**"]`, so the deploy PR (which only touches `deploy/app`) doesn't trigger another release (no loop).
+- **Why a GitHub App:** GitHub doesn't trigger workflows for PRs opened with `GITHUB_TOKEN` (to prevent recursion), so the required checks would never run on the deploy PR and it could never merge. A GitHub App installed only on this repository (Contents and Pull requests: read/write) issues a short-lived token per run; its ID and private key are repository secrets. Only the maintainer needs it: running the project doesn't.
+- Least privilege elsewhere: the image is pushed with the built-in `GITHUB_TOKEN` (`packages: write`); workflows default to `contents: read`.
+- `concurrency: release` serializes releases so two quick merges don't race on deploy PRs.
 - At scale I'd split the app repo and the config repo, and promote between environments with pull requests.
 
 ### 9d. Validation CI, separate from release

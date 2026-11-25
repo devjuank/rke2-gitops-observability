@@ -5,14 +5,14 @@ kind: Kustomization
 namespace: app
 
 resources:
-  - namespace.yaml
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
-  - servicemonitor.yaml # needs the Prometheus Operator CRDs (make deploy installs them first)
+- namespace.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- servicemonitor.yaml
 
 # The only place the image tag lives. CI updates it with
 # `kustomize edit set image` (step 8). Always an immutable sha- tag, never latest.
 images:
-  - name: ghcr.io/devjuank/workload-api
-    newTag: sha-bb7db68
+- name: ghcr.io/devjuank/workload-api
+  newTag: sha-1152fcd

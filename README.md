@@ -28,8 +28,15 @@ The VM needs 4 vCPU, 8 GB RAM and 40 GB of disk.
 ## Quick start
 
 ```sh
+make all       # VM + RKE2, monitoring + app, then the automated checks (~10–15 min)
+```
+
+`make all` runs these three, which you can also run one by one:
+
+```sh
 make up        # create the VM and install RKE2 via cloud-init (~5–10 min)
 make deploy    # monitoring stack + app (~3–5 min); prints the URLs
+make verify    # automated acceptance checks, ✔/✘ per check
 ```
 
 That's all. To use `kubectl` yourself, point it at the cluster first: `export KUBECONFIG=$PWD/kubeconfig`.
@@ -51,6 +58,29 @@ Everything is exposed through RKE2's Traefik ingress on the VM's IP, using [nip.
 Run `make urls` to print them again.
 
 ## Verify
+
+`make verify` ([`scripts/verify.sh`](scripts/verify.sh)) checks everything that can be automated and exits non-zero if anything fails:
+
+```
+Cluster (AC-1)
+  ✔ node Ready
+  ✔ all pods Running or Completed
+App (AC-2..AC-5)
+  ✔ workload-api: 2/2 pods Ready
+  ✔ readiness (/readyz) and liveness (/healthz) probes configured
+  ✔ CPU/memory requests and limits set
+  ✔ RollingUpdate maxSurge 1 / maxUnavailable 0
+  ✔ http://app.<VM-IP>.nip.io/ → 200 (/, /healthz, /readyz)
+Monitoring (AC-6, AC-7)
+  ✔ Grafana reachable, admin login works
+  ✔ Prometheus target workload-api UP (2/2)
+  ✔ http_requests_total is queryable
+  ✔ http_request_duration_seconds is queryable
+Access from this machine
+  ✔ *.nip.io resolves
+```
+
+The same checks by hand:
 
 ```sh
 # Inside the VM

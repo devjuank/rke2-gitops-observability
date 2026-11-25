@@ -23,10 +23,12 @@ BUILDER   ?= multiarch
 REPO_URL  := https://github.com/devjuank/rke2-gitops-observability
 
 .DEFAULT_GOAL := help
-.PHONY: help up kubeconfig status down deploy monitoring urls grafana-password dns-check test run load image
+.PHONY: help all up kubeconfig status down deploy verify monitoring urls grafana-password dns-check test run load image
 
 help: ## Show available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
+
+all: up deploy verify ## Everything from zero: VM + RKE2, monitoring + app, then checks
 
 up: ## Create the VM, install RKE2 via cloud-init, fetch kubeconfig
 	@command -v multipass >/dev/null || { echo "multipass not found: brew install --cask multipass"; exit 1; }
@@ -57,6 +59,9 @@ deploy: monitoring ## Install monitoring, then the app; prints the URLs
 	$(KUBECTL) -n app rollout status deploy/workload-api --timeout=180s
 	@$(MAKE) --no-print-directory dns-check
 	@$(MAKE) --no-print-directory urls
+
+verify: ## Run the automated acceptance checks (✔/✘ per check)
+	@KUBECONFIG=$(KUBECONFIG_FILE) VM_IP=$(VM_IP) ./scripts/verify.sh
 
 # kube-prometheus-stack goes first: the app's ServiceMonitor needs its CRDs.
 monitoring: ## Install kube-prometheus-stack via RKE2's helm-controller

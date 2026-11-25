@@ -1,0 +1,35 @@
+#cloud-config
+# Bootstraps a single-node RKE2 server at first boot (FR-1).
+# The same file works as EC2 user_data / Azure custom_data on any Ubuntu host.
+
+write_files:
+  # RKE2 server config. Read by rke2-server on start.
+  - path: /etc/rancher/rke2/config.yaml
+    permissions: "0600"
+    content: |
+      # Lets the non-root `ubuntu` user (and `make kubeconfig`) read the admin kubeconfig.
+      # Acceptable for a local, disposable VM only.
+      write-kubeconfig-mode: "0644"
+      # Traefik is the default ingress since RKE2 v1.36 (ingress-nginx retired upstream).
+      # Set explicitly so the choice is visible. See docs/DECISIONS.md §10.
+      ingress-controller: traefik
+      # Extra SANs on the API server certificate. The VM IP is appended at boot
+      # (runcmd below) so kubectl from the Mac can connect by IP. Keep this key last.
+      tls-san:
+        - rke2
+
+  # RKE2 binaries (kubectl, crictl, ctr) and admin kubeconfig for interactive shells.
+  - path: /etc/profile.d/rke2.sh
+    permissions: "0644"
+    content: |
+      export PATH="$PATH:/var/lib/rancher/rke2/bin"
+      export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+
+runcmd:
+  # The DHCP-assigned IP is only known at boot, so it can't be hard-coded above.
+  - echo "  - $(hostname -I | awk '{print $1}')" >> /etc/rancher/rke2/config.yaml
+  # Pinned version: reproducible builds (see docs/SPEC.md §5).
+  - curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="v1.36.6+rke2r2" sh -
+  # Blocks until the server reports ready, so `multipass launch` returns a working cluster.
+  - systemctl enable --now rke2-server
+  - ln -sf /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl

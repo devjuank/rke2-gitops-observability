@@ -1,0 +1,2 @@
+# Cluster admin credentials fetched by `make kubeconfig`
+kubeconfig

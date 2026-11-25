@@ -1,2 +1,24 @@
 # Cluster admin credentials fetched by `make kubeconfig`
 kubeconfig
+kubeconfig*
+*.kubeconfig
+
+# Secrets and keys: never commit (see NFR-5)
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*token*
+
+# Local Claude Code settings (may contain machine-specific permissions)
+.claude/settings.local.json
+
+# Build output
+app/workload-api
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

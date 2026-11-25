@@ -10,8 +10,12 @@ KUBECONFIG_FILE := $(CURDIR)/kubeconfig
 # Primary IPv4 of the VM (first one listed; CNI interfaces appear after it).
 VM_IP = $$(multipass info $(VM) | awk '/IPv4/ {print $$2; exit}')
 
+# Target for `make load`. Defaults to the app's Ingress on the VM (step 4+);
+# override for a local run: make load URL=http://localhost:8080
+URL ?= http://$(VM_IP)
+
 .DEFAULT_GOAL := help
-.PHONY: help up kubeconfig status down
+.PHONY: help up kubeconfig status down test run load
 
 help: ## Show available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -39,3 +43,17 @@ status: ## Show node and pod status
 down: ## Delete the VM and the local kubeconfig
 	multipass delete --purge $(VM)
 	rm -f $(KUBECONFIG_FILE)
+
+test: ## Vet and test the Go app (with the race detector)
+	cd app && go vet ./... && go test -race ./...
+
+run: ## Run the app locally on :8080 (env vars like STARTUP_DELAY_SECONDS pass through)
+	cd app && go run .
+
+load: ## Send traffic to / and /work until Ctrl-C (URL=... to override)
+	@echo "Sending load to $(URL) — Ctrl-C to stop"
+	@while true; do \
+		for i in 1 2 3 4 5; do curl -s -o /dev/null -w '%{http_code} ' "$(URL)/work" & done; \
+		curl -s -o /dev/null "$(URL)/"; \
+		wait; \
+	done

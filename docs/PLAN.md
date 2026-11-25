@@ -94,18 +94,18 @@ rke2-gitops-observability/
 - [x] Verify: `kubectl get nodes`, `kubectl get pods -A`
 
 ### 2. Go application (own small service, not an open-source app)
-- [ ] Endpoints:
+- [x] Endpoints:
   - `/` — sample response (fast, always 200)
   - `/work` — **simulated workload** with **random latency** (e.g. 10–500 ms) and a **configurable error rate** (e.g. 5% → HTTP 500), so the dashboard shows real latency percentiles and errors during the demo
   - `/healthz` — liveness: always 200 if the HTTP server responds
   - `/readyz` — readiness: 200 only after init, 503 during startup/shutdown
   - `/metrics` — Prometheus metrics
-- [ ] Config via env vars (set in the Deployment, so they're changeable through Git/Argo CD): `PORT`, `WORK_MAX_LATENCY_MS`, `WORK_ERROR_RATE`, `STARTUP_DELAY_SECONDS` (simulates slow init to show readiness in action)
-- [ ] Metrics with `prometheus/client_golang`: `http_requests_total{method,path,code}` counter, `http_request_duration_seconds{method,path}` histogram, plus default Go/process metrics
-- [ ] Load generator for the demo: `make load` (e.g. `hey` or a small loop with `curl` against `/` and `/work`), or an optional in-cluster `Job`
-- [ ] Structured logs (`log/slog`), graceful shutdown on SIGTERM (mark not-ready → drain → exit)
-- [ ] Table-driven tests for the handlers
-- [ ] Multi-stage Dockerfile → `gcr.io/distroless/static:nonroot`
+- [x] Config via env vars (set in the Deployment, so they're changeable through Git/Argo CD): `PORT`, `WORK_MAX_LATENCY_MS`, `WORK_ERROR_RATE`, `STARTUP_DELAY_SECONDS` (simulates slow init to show readiness in action)
+- [x] Metrics with `prometheus/client_golang`: `http_requests_total{method,path,code}` counter, `http_request_duration_seconds{method,path}` histogram, plus default Go/process metrics
+- [x] Load generator for the demo: `make load` (e.g. `hey` or a small loop with `curl` against `/` and `/work`), or an optional in-cluster `Job`
+- [x] Structured logs (`log/slog`), graceful shutdown on SIGTERM (mark not-ready → drain → exit)
+- [x] Table-driven tests for the handlers
+- [x] Multi-stage Dockerfile → `gcr.io/distroless/static:nonroot`
 
 ### 3. Image
 - [ ] `docker buildx build --platform linux/arm64,linux/amd64 -t ghcr.io/<user>/workload-api:<tag> --push app/`

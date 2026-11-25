@@ -180,6 +180,20 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 - Permissions are least-privilege: `contents: write` and `packages: write` only, using the built-in `GITHUB_TOKEN`.
 - At scale I'd split the app repo and the config repo, and promote between environments with pull requests.
 
+### 9d. Validation CI, separate from release
+
+**Chosen:** a `checks` workflow on every push and pull request with read-only permissions: Go format/vet/tests, Kustomize + kubeconform against Kubernetes 1.36 and CRD schemas, dashboard JSON, shellcheck, and an image build without push.
+
+**Why**
+- Broken YAML is caught before Argo CD tries to apply it; with GitOps, Git is the deploy, so validating Git is validating the deploy.
+- Separate from the release workflow (step 8): release only runs on `app/**` changes to avoid a loop with its own tag-bump commit, but manifests and scripts change too and need checking. A workflow that never writes can run on everything without looping.
+- `contents: read` only; no secrets involved.
+- GitHub-hosted runners are free for public repositories; the workflow takes about 2 minutes.
+
+**Discarded (for now)**
+- **End-to-end test** (install RKE2 on the runner, `make deploy && make verify`): possible, but slower (~10 min) and more fragile. A good next step.
+- **Pinning actions by commit SHA:** stronger supply-chain protection, but less readable; listed in the production next steps.
+
 ### 9c. Deployment strategy: rolling update (canary as next step)
 
 **Chosen:** the native Kubernetes `RollingUpdate` with `maxSurge: 1` and `maxUnavailable: 0`. Kubernetes starts one new pod, waits until its readiness probe passes, and only then removes an old one.

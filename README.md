@@ -1,5 +1,7 @@
 # rke2-gitops-observability
 
+[![checks](https://github.com/devjuank/rke2-gitops-observability/actions/workflows/checks.yml/badge.svg)](https://github.com/devjuank/rke2-gitops-observability/actions/workflows/checks.yml)
+
 A local single-node **RKE2** cluster on a Multipass VM, running a small Go service observed with **Prometheus + Grafana**, delivered through **GitHub Actions + Argo CD**. Built as a take-home DevOps exercise.
 
 > Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–6**, the core of the exercise (VM + RKE2, Go app, image, app manifests, Prometheus + Grafana, dashboard).
@@ -203,6 +205,17 @@ make load      # traffic to / and /work against the cluster; Ctrl-C to stop
 **Known limitation:** the p99 of `/work` can read above `WORK_MAX_LATENCY_MS` (e.g. ~0.69 s with a 0.5 s max). The app uses the client library's default histogram buckets, which jump from 0.5 s to 1 s, and `histogram_quantile` interpolates linearly inside that bucket. The fix (buckets matched to the workload's range) is planned as the first change shipped through the CI/CD pipeline.
 
 To change the dashboard, edit it in Grafana, export the JSON (Share → Export), replace the file and run `make deploy`.
+
+## CI
+
+[`checks.yml`](.github/workflows/checks.yml) runs on every push and pull request, with read-only permissions:
+
+| Job | Checks |
+|---|---|
+| Go | `gofmt`, `go vet`, `go test -race` |
+| Kubernetes manifests | Kustomize output validated by [kubeconform](https://github.com/yannh/kubeconform) against Kubernetes 1.36 and CRD schemas; dashboard JSON well-formed |
+| Shell scripts | `shellcheck` |
+| Image builds | `docker build` of the app (no push) |
 
 ## Troubleshooting
 

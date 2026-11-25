@@ -133,6 +133,13 @@ rke2-gitops-observability/
   - Pod memory vs request/limit
   - Container restarts
 
+### 7a. CI checks (GitHub Actions, validation only)
+- [x] `.github/workflows/checks.yml` on every push and pull request, `permissions: contents: read`
+- [x] Go: `gofmt`, `go vet`, `go test -race`
+- [x] Manifests: `kubectl kustomize` + kubeconform (Kubernetes 1.36 + CRD schemas); dashboard JSON well-formed
+- [x] `shellcheck scripts/*.sh`; `docker build` without push
+- [x] Negative test: a broken manifest on a branch makes the workflow fail
+
 ### 7. Argo CD (GitOps)
 - [ ] `HelmChart` for argo-cd (namespace `argocd`)
 - [ ] `Application` → repo `deploy/app`, `automated: {prune: true, selfHeal: true}`
@@ -173,6 +180,7 @@ A step is done only when its checks pass. Run them, paste the output and commit.
 | 4. App manifests | 2/2 pods `Ready` in `app`; `curl http://app.<VM-IP>.nip.io/` → 200 from the Mac; probes and requests/limits present; `kubectl rollout restart` causes **no failed requests** while a load loop runs | `kubectl -n app get pods`, `kubectl -n app describe deploy`, curl loop during rollout |
 | 5. Monitoring | All `monitoring` pods `Running`; Grafana reachable at `http://grafana.<VM-IP>.nip.io`; Prometheus target for `workload-api` is **UP** | Prometheus UI → Status → Targets, or `up{job=~".*workload-api.*"} == 1` |
 | 6. Dashboard | Dashboard auto-loaded from the ConfigMap (no manual import); all 6 panels show data while `make load` runs | Grafana UI |
+| 7a. CI checks | `checks` workflow green on `main`; a broken manifest on a branch turns it red | `gh run list --workflow checks.yml`, Actions tab |
 | 7. Argo CD | Application `Synced` + `Healthy`; a manual `kubectl scale` is reverted by self-heal; a Git change to `deploy/app` is applied without `kubectl` | `kubectl -n argocd get applications`, Argo CD UI |
 | 8. CI/CD | Push to `app/` → workflow green → bot commit bumps the `sha-` tag → Argo CD rolls out the new image (< ~5 min, or instant with Refresh); no workflow loop | GitHub Actions UI, `kubectl -n app get deploy -o jsonpath='{..image}'` |
 | 9. README | A fresh reader can reproduce with `make up && make deploy` following only the README | Read it top to bottom on a clean VM (`make down && make up`) |
@@ -188,8 +196,9 @@ Priority: what the exercise explicitly asks for comes first. Extras come after.
 4. Prometheus + Grafana + ServiceMonitor
 5. Dashboard
 6. README
-7. Argo CD *(extra)*
-8. GitHub Actions CI/CD with tag bump → Argo CD *(extra, builds on step 7)*
+7. CI checks *(extra, validation only)*
+8. Argo CD *(extra)*
+9. GitHub Actions CI/CD with tag bump → Argo CD *(extra, builds on Argo CD)*
 
 ## Production next steps (for the README)
 

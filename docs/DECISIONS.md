@@ -160,6 +160,12 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 
 **Trade-off:** Argo CD adds memory usage, so the VM is sized to 8 GB.
 
+**Details**
+- Argo CD is installed the same way as the monitoring stack (an RKE2 `HelmChart`, chart 10.19.1 / Argo CD v3.6.3), without Dex or notifications, and with `server.insecure` so Traefik serves the UI over plain HTTP like everything else.
+- Only `deploy/app` is managed by Argo CD, as planned. `make deploy` no longer applies it; it installs Argo CD, registers the `Application` and waits until it's `Synced` and `Healthy`. Monitoring and dashboards stay with `make deploy`; moving them under Argo CD (app of apps) is a next step.
+- Argo CD adopts resources that already exist with the same names, so switching an existing cluster from `kubectl apply` to Argo CD doesn't recreate the pods.
+- The admin password is the one Argo CD generates at install (`argocd-initial-admin-secret`); nothing is stored in Git.
+
 ### 9b. Continuous deployment: CI commits the new image tag, Argo CD deploys
 
 **Chosen:** on every push that touches `app/`, GitHub Actions runs the tests, builds and pushes a multi-arch image tagged with the commit SHA, then runs `kustomize edit set image` and commits the new tag to `deploy/app`. Argo CD sees the Git change and rolls it out.
@@ -230,6 +236,8 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 - **Fixed hostnames + `/etc/hosts`** (e.g. `*.rke2.test` with a `make hosts` target): cleaner URLs, but needs `sudo` on every machine and again whenever the VM IP changes.
 - **`*.localhost` + port-forward:** no DNS needed, but depends on a long-running `kubectl port-forward`.
 - **Local DNS server (dnsmasq):** an extra host tool and root service for every reviewer, and it still has to be edited when the VM IP changes.
+
+**Ingress status: Traefik publishes the VM IP.** RKE2 runs Traefik on the node's ports 80/443 (hostPort) behind a `ClusterIP` Service, so there is no load-balancer IP to copy into Ingress status. Ingresses showed no `ADDRESS`, and Argo CD (which treats an Ingress without an address as still progressing) never reported the app as `Healthy`. A `HelmChartConfig` for `rke2-traefik` ([`deploy/traefik/traefik-config.yaml`](../deploy/traefik/traefik-config.yaml)) sets `ingressEndpoint.ip` to the VM IP, filled in by `make deploy`. Discarded: a custom Argo CD health check that always reports Ingresses as healthy (hides real problems), and RKE2's ServiceLB (it also binds ports 80/443 on the node, clashing with Traefik).
 
 **Known issue: routers with DNS rebinding protection.** Some routers drop public DNS answers that point to private IPs, so `*.nip.io` doesn't resolve. The fix is a per-domain resolver on macOS, `/etc/resolver/nip.io` with `nameserver 1.1.1.1`: only `*.nip.io` lookups bypass the router, everything else (local names, VPN domains) is unchanged, and it keeps working when the VM IP changes. Changing the Mac's DNS globally was discarded for that reason. `make deploy` detects the problem and prints the fix; the app also answers on `http://<VM-IP>/` in the meantime.
 

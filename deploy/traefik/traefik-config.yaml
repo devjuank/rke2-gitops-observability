@@ -1,0 +1,22 @@
+# Tunes RKE2's bundled Traefik. A HelmChartConfig is RKE2's supported way to
+# override values of a chart it ships (here, the rke2-traefik HelmChart).
+# Applied by `make deploy`, which replaces __VM_IP__ with the VM's IP.
+#
+# Why: Traefik listens on the node's ports 80/443 (hostPort) behind a ClusterIP
+# Service, so there is no load-balancer IP to copy into Ingress status. Without
+# an address, `kubectl get ingress` shows none and Argo CD keeps Ingresses (and
+# so the app) in "Progressing". Publishing the VM IP fixes both.
+# See docs/DECISIONS.md §10.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesIngress:
+        publishedService:
+          enabled: false
+        ingressEndpoint:
+          ip: __VM_IP__

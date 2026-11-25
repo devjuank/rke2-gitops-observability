@@ -45,12 +45,15 @@ jobs:
           echo "${KUBECONFORM_SHA256}  kubeconform.tar.gz" | sha256sum -c -
           tar -xzf kubeconform.tar.gz kubeconform && sudo mv kubeconform /usr/local/bin/
       - name: Validate against Kubernetes 1.36 and CRD schemas
-        # CRD schemas (ServiceMonitor, HelmChart) come from the datree CRDs catalog.
+        # CRD schemas (ServiceMonitor, HelmChart, HelmChartConfig, Application) come from the datree CRDs catalog.
         run: |
           {
             kubectl kustomize deploy/app; echo "---"
             kubectl kustomize deploy/monitoring/dashboards; echo "---"
-            cat deploy/monitoring/kube-prometheus-stack.yaml
+            cat deploy/monitoring/kube-prometheus-stack.yaml; echo "---"
+            cat deploy/argocd/argo-cd.yaml; echo "---"
+            cat deploy/argocd/application.yaml; echo "---"
+            cat deploy/traefik/traefik-config.yaml
           } | kubeconform -strict -summary -kubernetes-version 1.36.0 \
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'

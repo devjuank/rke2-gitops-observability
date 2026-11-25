@@ -1,0 +1,27 @@
+# The app's desired state is deploy/app on the main branch. Argo CD polls Git
+# and applies changes; nobody runs kubectl apply on deploy/app anymore.
+# Forked this repo? Point repoURL at your fork.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: workload-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/devjuank/rke2-gitops-observability.git
+    targetRevision: main
+    path: deploy/app
+  destination:
+    server: https://kubernetes.default.svc # this same cluster
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true    # delete resources removed from Git
+      selfHeal: true # revert manual changes made in the cluster
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

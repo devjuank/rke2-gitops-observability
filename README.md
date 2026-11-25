@@ -4,7 +4,7 @@
 
 A local single-node **RKE2** cluster on a Multipass VM, running a small Go service observed with **Prometheus + Grafana**, delivered through **GitHub Actions + Argo CD**. Built as a take-home DevOps exercise.
 
-> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–6**, the core of the exercise (VM + RKE2, Go app, image, app manifests, Prometheus + Grafana, dashboard).
+> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–6**, the core of the exercise (VM + RKE2, Go app, image, app manifests, Prometheus + Grafana, dashboard), plus **CI checks** and **Argo CD**.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ make all       # VM + RKE2, monitoring + app, then the automated checks (~10–1
 
 ```sh
 make up        # create the VM and install RKE2 via cloud-init (~5–10 min)
-make deploy    # monitoring stack + app (~3–5 min); prints the URLs
+make deploy    # monitoring + Argo CD, which deploys the app from Git (~5 min); prints the URLs
 make verify    # automated acceptance checks, ✔/✘ per check
 ```
 
@@ -56,6 +56,7 @@ Everything is exposed through RKE2's Traefik ingress on the VM's IP, using [nip.
 | App | `http://app.<VM-IP>.nip.io/` (also `http://<VM-IP>/`) |
 | Grafana | `http://grafana.<VM-IP>.nip.io/` (user `admin`, password from `make grafana-password`) |
 | Prometheus | `http://prometheus.<VM-IP>.nip.io/` |
+| Argo CD | `http://argocd.<VM-IP>.nip.io/` (user `admin`, password from `make argocd-password`) |
 
 Run `make urls` to print them again.
 
@@ -80,6 +81,9 @@ Monitoring (AC-6, AC-7)
   ✔ http_request_duration_seconds is queryable
 Dashboard (AC-8)
   ✔ Grafana dashboard 'workload-api' loaded from its ConfigMap
+GitOps (AC-10)
+  ✔ Argo CD UI reachable
+  ✔ Application workload-api Synced and Healthy
 Access from this machine
   ✔ *.nip.io resolves
 ```
@@ -205,6 +209,25 @@ make load      # traffic to / and /work against the cluster; Ctrl-C to stop
 **Known limitation:** the p99 of `/work` can read above `WORK_MAX_LATENCY_MS` (e.g. ~0.69 s with a 0.5 s max). The app uses the client library's default histogram buckets, which jump from 0.5 s to 1 s, and `histogram_quantile` interpolates linearly inside that bucket. The fix (buckets matched to the workload's range) is planned as the first change shipped through the CI/CD pipeline.
 
 To change the dashboard, edit it in Grafana, export the JSON (Share → Export), replace the file and run `make deploy`.
+
+## GitOps with Argo CD
+
+The app is deployed by **Argo CD**, not by `kubectl`. [`deploy/argocd/application.yaml`](deploy/argocd/application.yaml) points Argo CD at `deploy/app` on the `main` branch of this repository, with automated sync:
+
+- **Git is the source of truth:** a commit to `deploy/app` reaches the cluster on its own (Argo CD polls Git every ~2–3 min; *Refresh* in the UI makes it immediate).
+- **Self-heal:** manual changes in the cluster are reverted to what Git says.
+- **Prune:** resources removed from Git are removed from the cluster.
+
+`make deploy` first tells RKE2's Traefik to publish the VM IP in Ingress status ([`deploy/traefik/traefik-config.yaml`](deploy/traefik/traefik-config.yaml)); without an address, Argo CD would keep the app in *Progressing*. It then installs Argo CD (a `HelmChart`, like the monitoring stack) and registers the Application; from then on, change Git instead of running `kubectl apply` on `deploy/app`. Monitoring and dashboards are still applied by `make deploy`.
+
+> Forked this repo? Change `repoURL` in `deploy/argocd/application.yaml` to your fork, or Argo CD keeps deploying from this one.
+
+Try it:
+
+```sh
+kubectl -n app scale deploy workload-api --replicas=1   # self-heal brings it back to 2 within seconds
+kubectl -n argocd get application workload-api          # SYNC STATUS Synced, HEALTH STATUS Healthy
+```
 
 ## CI
 

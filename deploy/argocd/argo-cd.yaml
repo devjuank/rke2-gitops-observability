@@ -1,0 +1,72 @@
+# Argo CD, installed by RKE2's built-in helm-controller.
+# Applied by `make deploy`, which replaces __VM_IP__ with the VM's IP.
+# See docs/DECISIONS.md §9.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argo-cd
+  namespace: kube-system
+spec:
+  repo: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  version: 10.19.1 # Argo CD v3.6.3
+  targetNamespace: argocd
+  createNamespace: true
+  valuesContent: |-
+    configs:
+      params:
+        # Serve plain HTTP behind Traefik, like the rest of the stack (TLS is out of scope).
+        server.insecure: true
+      cm:
+        # Show the UI's Git source links and keep the default 2-3 min polling of Git.
+        url: http://argocd.__VM_IP__.nip.io
+
+    server:
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        hostname: argocd.__VM_IP__.nip.io
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+
+    # Not needed locally: no SSO (Dex) and no notifications.
+    dex:
+      enabled: false
+    notifications:
+      enabled: false
+
+    controller:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 768Mi
+
+    repoServer:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+
+    applicationSet:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+
+    redis:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi

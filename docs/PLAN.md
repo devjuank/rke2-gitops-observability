@@ -141,8 +141,8 @@ rke2-gitops-observability/
 - [x] Negative test: a broken manifest on a branch makes the workflow fail
 
 ### 7. Argo CD (GitOps)
-- [ ] `HelmChart` for argo-cd (namespace `argocd`)
-- [ ] `Application` → repo `deploy/app`, `automated: {prune: true, selfHeal: true}`
+- [x] `HelmChart` for argo-cd (namespace `argocd`)
+- [x] `Application` → repo `deploy/app`, `automated: {prune: true, selfHeal: true}`
 - [ ] Demo: change replicas/image tag in Git → cluster converges automatically
 
 ### 8. CI/CD (GitHub Actions + Argo CD)

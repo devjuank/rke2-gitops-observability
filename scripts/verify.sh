@@ -50,6 +50,8 @@ app_http()        { [ "$(http_code app /)" = 200 ] && [ "$(http_code app /health
 grafana_pw()      { kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d; }
 grafana_login()   { [ "$(http_code grafana /api/user -u "admin:$(grafana_pw)")" = 200 ]; }
 dashboard_loaded() { [ "$(http_code grafana /api/dashboards/uid/workload-api -u "admin:$(grafana_pw)")" = 200 ]; }
+argocd_ui()       { [ "$(http_code argocd /)" = 200 ]; }
+app_synced()      { [ "$(kubectl -n argocd get application workload-api -o jsonpath='{.status.sync.status}/{.status.health.status}')" = Synced/Healthy ]; }
 target_up()       { [ "$(promql 'count(up{job="workload-api"} == 1)')" = 2 ]; }
 requests_metric() { [ -n "$(promql 'count(http_requests_total{job="workload-api"})')" ]; }
 latency_metric()  { [ -n "$(promql 'count(http_request_duration_seconds_bucket{job="workload-api"})')" ]; }
@@ -73,6 +75,10 @@ check "http_request_duration_seconds is queryable" latency_metric 12
 
 echo "Dashboard (AC-8)"
 check "Grafana dashboard 'workload-api' loaded from its ConfigMap" dashboard_loaded 12
+
+echo "GitOps (AC-10)"
+check "Argo CD UI reachable" argocd_ui
+check "Application workload-api Synced and Healthy" app_synced 12
 
 echo "Access from this machine"
 if curl -s -o /dev/null --max-time 5 "http://app.$VM_IP.nip.io/"; then

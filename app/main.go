@@ -93,9 +93,12 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 			Help: "Total HTTP requests by method, path and status code.",
 		}, []string{"method", "path", "code"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "HTTP request latency by method and path.",
-			Buckets: prometheus.DefBuckets, // 5ms..10s, covers /work's 10–500ms range
+			Name: "http_request_duration_seconds",
+			Help: "HTTP request latency by method and path.",
+			// Dense around /work's 10–500ms range so percentiles are accurate. The
+			// client's default buckets jump from 0.5s to 1s, which made p99 read
+			// ~0.7s for a workload that never exceeds 0.5s.
+			Buckets: []float64{.025, .05, .1, .2, .3, .4, .5, .6, .75, 1, 2.5, 5},
 		}, []string{"method", "path"}),
 	}
 	reg.MustRegister(m.requests, m.duration)

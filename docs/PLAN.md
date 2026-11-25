@@ -146,11 +146,12 @@ rke2-gitops-observability/
 - [x] Demo: change replicas/image tag in Git → cluster converges automatically (`WORK_ERROR_RATE` 0.05 → 0.10)
 
 ### 8. CI/CD (GitHub Actions + Argo CD)
-- [ ] Trigger: push to `main` with changes under `app/` (`paths: ["app/**"]`), so the bot's own commit to `deploy/` doesn't retrigger the build
-- [ ] Job 1 — test: `go vet`, `go test -race`
-- [ ] Job 2 — build & push: `docker/setup-qemu-action` + `docker/setup-buildx-action`, `docker/login-action` to ghcr.io with `GITHUB_TOKEN`, `docker/build-push-action` for `linux/arm64,linux/amd64`, tags `sha-<short>` and `latest`
-- [ ] Job 3 — bump: `kustomize edit set image ghcr.io/<user>/workload-api=ghcr.io/<user>/workload-api:sha-<short>` in `deploy/app`, commit and push as `github-actions[bot]`
-- [ ] Workflow permissions: `contents: write` (bump commit), `packages: write` (ghcr.io push)
+- [ ] `main` protected by a ruleset: PR required, `checks` jobs required, squash only, no force-push/deletion, no bypass
+- [ ] Trigger: push to `main` with changes under `app/` (`paths: ["app/**"]`), so the deploy PR (only `deploy/app`) doesn't retrigger the build
+- [ ] Job 1 — checks: reuse `checks.yml` (`workflow_call`)
+- [ ] Job 2 — build & push: `docker/setup-buildx-action` (no QEMU: the Dockerfile cross-compiles), `docker/login-action` to ghcr.io with `GITHUB_TOKEN`, `docker/build-push-action` for `linux/arm64,linux/amd64`, tags `sha-<short>` and `latest`
+- [ ] Job 3 — deploy PR: `kustomize edit set image` in `deploy/app`, open a PR as a GitHub App (`actions/create-github-app-token`) with auto-merge
+- [ ] Permissions: `packages: write` for the image (`GITHUB_TOKEN`); App token (Contents + Pull requests) for the deploy PR
 - [ ] Argo CD auto-sync picks up the new tag (default polling ~3 min; `argocd app sync` or a refresh from the UI makes it instant for the demo)
 - [ ] First change shipped through the pipeline: histogram buckets matched to `/work`'s 10–500 ms range (the default buckets jump from 0.5 s to 1 s, so p99 is over-estimated; see README → Dashboard)
 - [ ] Never deploy `latest`: the manifest always pins the immutable `sha-` tag, so every deploy is traceable to a commit and easy to roll back (`git revert`)

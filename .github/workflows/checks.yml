@@ -1,11 +1,14 @@
-# Validation only: runs on every push and pull request, publishes nothing and
-# never commits, so it can't trigger itself. Release (build, push, tag bump)
-# is a separate workflow (step 8). See docs/DECISIONS.md §9d.
+# Validation only: publishes nothing and never commits, so it can't trigger
+# itself. Runs on pull requests (main is protected: these checks are required
+# to merge), on main itself, and as the first stage of the release workflow.
+# See docs/DECISIONS.md §9d.
 name: checks
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read

@@ -1,0 +1,104 @@
+# Release: on every change to app/ merged into main, test, build and publish a
+# multi-arch image, then open a deploy PR that bumps the image tag in
+# deploy/app. The PR auto-merges once checks pass, and Argo CD deploys it.
+# See docs/DECISIONS.md §9b.
+#
+# No loop: this workflow only runs on app/** changes, and the deploy PR only
+# touches deploy/app.
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**"]
+
+permissions:
+  contents: read
+
+# One release at a time, so two quick merges don't race on the deploy PR.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/devjuank/workload-api
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  build:
+    name: Build and push image
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io with the built-in GITHUB_TOKEN
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Immutable tag from the commit
+        id: tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      # No QEMU needed: the Dockerfile cross-compiles on the runner's platform.
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: app
+          platforms: linux/arm64,linux/amd64
+          push: true
+          build-args: VERSION=${{ steps.tag.outputs.tag }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # `latest` is a convenience in the registry only; manifests always pin sha- tags.
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+
+  deploy-pr:
+    name: Open deploy PR
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      # main is protected: changes only land through PRs with passing checks.
+      # A PR opened with GITHUB_TOKEN wouldn't trigger those checks (GitHub
+      # prevents workflow recursion), so the deploy PR is opened as a GitHub App.
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app.outputs.token }}
+      - name: Bump the image tag
+        working-directory: deploy/app
+        run: |
+          kustomize edit set image "${IMAGE}:${TAG}"
+          kustomize build . > /dev/null   # fail early if the result doesn't render
+          git diff
+      - name: Open the PR and enable auto-merge
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          bot_id=$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+          branch="deploy/workload-api-${TAG}"
+          git switch -c "$branch"
+          git commit -am "deploy: workload-api ${TAG}"
+          git push origin "$branch"
+
+          gh pr create --base main --head "$branch" \
+            --title "deploy: workload-api ${TAG}" \
+            --body "Bumps \`deploy/app\` to \`${IMAGE}:${TAG}\`, built from ${GITHUB_SHA} by [this run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Auto-merges when checks pass; Argo CD then rolls it out."
+          gh pr merge "$branch" --auto --squash --delete-branch

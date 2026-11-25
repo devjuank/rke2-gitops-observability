@@ -206,7 +206,7 @@ Probe traffic (`/healthz`, `/readyz`) is excluded from the request and error pan
 make load      # traffic to / and /work against the cluster; Ctrl-C to stop
 ```
 
-**Known limitation:** the p99 of `/work` can read above `WORK_MAX_LATENCY_MS` (e.g. ~0.69 s with a 0.5 s max). The app uses the client library's default histogram buckets, which jump from 0.5 s to 1 s, and `histogram_quantile` interpolates linearly inside that bucket. The fix (buckets matched to the workload's range) is planned as the first change shipped through the CI/CD pipeline.
+Latency percentiles come from histogram buckets matched to `/work`'s 10–500 ms range (`25ms … 500ms, 600ms, 750ms, 1s …`). With the client library's defaults (a jump from 0.5 s to 1 s), p99 used to read ~0.7 s for a workload that never exceeds 0.5 s.
 
 To change the dashboard, edit it in Grafana, export the JSON (Share → Export), replace the file and run `make deploy`.
 
@@ -229,9 +229,21 @@ kubectl -n app scale deploy workload-api --replicas=1   # self-heal brings it ba
 kubectl -n argocd get application workload-api          # SYNC STATUS Synced, HEALTH STATUS Healthy
 ```
 
-## CI
+## CI/CD
 
-[`checks.yml`](.github/workflows/checks.yml) runs on every push and pull request, with read-only permissions:
+`main` is protected: every change goes through a pull request, and the `checks` workflow must pass before it can be merged (squash only).
+
+```
+PR touching app/ ──merge──▶ release.yml: checks → build + push ghcr.io/…:sha-<commit>
+                                        → opens "deploy: workload-api sha-<commit>" PR (auto-merge)
+deploy PR ──checks pass──▶ auto-merged into main ──▶ Argo CD syncs ──▶ rolling update, zero downtime
+```
+
+- **Every deployment is a PR** that changes one line (`newTag` in [`deploy/app/kustomization.yaml`](deploy/app/kustomization.yaml)). Rolling back is reverting it.
+- **No loop:** the release only runs on changes under `app/`, and the deploy PR only touches `deploy/app`.
+- **Credentials:** the image is pushed with the built-in `GITHUB_TOKEN`. The deploy PR is opened by a GitHub App (secrets `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`), because PRs opened with `GITHUB_TOKEN` don't trigger the required checks. It's only needed to run releases from your own fork, not to run the project.
+
+[`checks.yml`](.github/workflows/checks.yml) runs on every pull request, on `main`, and as the first stage of a release, with read-only permissions:
 
 | Job | Checks |
 |---|---|

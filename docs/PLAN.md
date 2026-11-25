@@ -124,8 +124,8 @@ rke2-gitops-observability/
 - [x] Verify the target shows **UP** in Prometheus → Status → Targets
 
 ### 6. Grafana dashboard (as code)
-- [ ] ConfigMap labeled `grafana_dashboard: "1"` with the dashboard JSON
-- [ ] Panels:
+- [x] ConfigMap labeled `grafana_dashboard: "1"` with the dashboard JSON
+- [x] Panels:
   - Request rate (RPS) by path
   - Error rate (% 5xx)
   - Latency p95 / p99 (histogram_quantile)
@@ -145,6 +145,7 @@ rke2-gitops-observability/
 - [ ] Job 3 — bump: `kustomize edit set image ghcr.io/<user>/workload-api=ghcr.io/<user>/workload-api:sha-<short>` in `deploy/app`, commit and push as `github-actions[bot]`
 - [ ] Workflow permissions: `contents: write` (bump commit), `packages: write` (ghcr.io push)
 - [ ] Argo CD auto-sync picks up the new tag (default polling ~3 min; `argocd app sync` or a refresh from the UI makes it instant for the demo)
+- [ ] First change shipped through the pipeline: histogram buckets matched to `/work`'s 10–500 ms range (the default buckets jump from 0.5 s to 1 s, so p99 is over-estimated; see README → Dashboard)
 - [ ] Never deploy `latest`: the manifest always pins the immutable `sha-` tag, so every deploy is traceable to a commit and easy to roll back (`git revert`)
 
 ### 9. README

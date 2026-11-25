@@ -137,6 +137,11 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 
 **Panels (RED + resources):** request rate, error rate, p95/p99 latency, pod CPU and memory vs requests/limits, container restarts.
 
+**Details**
+- The JSON lives in its own file and Kustomize's `configMapGenerator` wraps it into the ConfigMap. The dashboard stays readable and diffable, and can be replaced by a Grafana export without escaping JSON inside YAML.
+- A `datasource` variable instead of a hard-coded datasource, so the dashboard also works in another Grafana.
+- Request and error panels exclude probe traffic (`/healthz`, `/readyz`), which would otherwise dominate the rate at low load and dilute the error percentage.
+
 ---
 
 ## 9. Delivery: Argo CD (GitOps)

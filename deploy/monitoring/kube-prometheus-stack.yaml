@@ -69,6 +69,10 @@ spec:
           label: grafana_dashboard
           labelValue: "1"
           searchNamespace: ALL
+        # No Alertmanager, so no Alertmanager datasource pointing at nothing.
+        datasources:
+          alertmanager:
+            enabled: false
       resources:
         requests:
           cpu: 50m

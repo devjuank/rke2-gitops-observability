@@ -2,7 +2,7 @@
 
 A local single-node **RKE2** cluster on a Multipass VM, running a small Go service observed with **Prometheus + Grafana**, delivered through **GitHub Actions + Argo CD**. Built as a take-home DevOps exercise.
 
-> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–5** (VM + RKE2, Go app, image, app manifests, Prometheus + Grafana).
+> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–6**, the core of the exercise (VM + RKE2, Go app, image, app manifests, Prometheus + Grafana, dashboard).
 
 ## Prerequisites
 
@@ -76,6 +76,8 @@ Monitoring (AC-6, AC-7)
   ✔ Prometheus target workload-api UP (2/2)
   ✔ http_requests_total is queryable
   ✔ http_request_duration_seconds is queryable
+Dashboard (AC-8)
+  ✔ Grafana dashboard 'workload-api' loaded from its ConfigMap
 Access from this machine
   ✔ *.nip.io resolves
 ```
@@ -180,6 +182,27 @@ make down    # delete the VM and ./kubeconfig
 - **Prometheus** scrapes every 15 s and keeps 1 day of data, with no persistent storage. It discovers `ServiceMonitor`s in all namespaces; the app's lives in [`deploy/app/servicemonitor.yaml`](deploy/app/servicemonitor.yaml).
 - **Grafana** comes with the chart's default Kubernetes dashboards. Its admin password is random, created by `make deploy` as a Kubernetes Secret, and never stored in Git.
 - **Not deployed:** Alertmanager (alerting is out of scope) and the etcd / scheduler / controller-manager / kube-proxy monitors (on RKE2 they listen only on `127.0.0.1`, so they would always show as DOWN).
+
+## Dashboard
+
+The **workload-api** dashboard (Grafana → Dashboards) is code: [`deploy/monitoring/dashboards/workload-api.json`](deploy/monitoring/dashboards/workload-api.json), packed by Kustomize into a ConfigMap labeled `grafana_dashboard: "1"` that Grafana's sidecar loads automatically.
+
+| Row | Panels |
+|---|---|
+| At a glance | Request rate · Error rate · p95 latency of `/work` · Ready pods |
+| Traffic (RED) | Request rate by path · Error rate (% 5xx) |
+| Latency and stability | `/work` latency p50 / p95 / p99 · Container restarts |
+| Resources | CPU per pod vs request/limit · Memory per pod vs request/limit |
+
+Probe traffic (`/healthz`, `/readyz`) is excluded from the request and error panels so they reflect user traffic. To see it move:
+
+```sh
+make load      # traffic to / and /work against the cluster; Ctrl-C to stop
+```
+
+**Known limitation:** the p99 of `/work` can read above `WORK_MAX_LATENCY_MS` (e.g. ~0.69 s with a 0.5 s max). The app uses the client library's default histogram buckets, which jump from 0.5 s to 1 s, and `histogram_quantile` interpolates linearly inside that bucket. The fix (buckets matched to the workload's range) is planned as the first change shipped through the CI/CD pipeline.
+
+To change the dashboard, edit it in Grafana, export the JSON (Share → Export), replace the file and run `make deploy`.
 
 ## Troubleshooting
 

@@ -47,10 +47,9 @@ app_probes()      { [ "$(deploy_field readinessProbe.httpGet.path) $(deploy_fiel
 app_resources()   { [ -n "$(deploy_field resources.requests.cpu)" ] && [ -n "$(deploy_field resources.limits.memory)" ]; }
 app_strategy()    { [ "$(kubectl -n app get deploy workload-api -o jsonpath='{.spec.strategy.rollingUpdate.maxSurge}/{.spec.strategy.rollingUpdate.maxUnavailable}')" = 1/0 ]; }
 app_http()        { [ "$(http_code app /)" = 200 ] && [ "$(http_code app /healthz)" = 200 ] && [ "$(http_code app /readyz)" = 200 ]; }
-grafana_login()   {
-  local pw; pw=$(kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d)
-  [ "$(http_code grafana /api/user -u "admin:$pw")" = 200 ]
-}
+grafana_pw()      { kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d; }
+grafana_login()   { [ "$(http_code grafana /api/user -u "admin:$(grafana_pw)")" = 200 ]; }
+dashboard_loaded() { [ "$(http_code grafana /api/dashboards/uid/workload-api -u "admin:$(grafana_pw)")" = 200 ]; }
 target_up()       { [ "$(promql 'count(up{job="workload-api"} == 1)')" = 2 ]; }
 requests_metric() { [ -n "$(promql 'count(http_requests_total{job="workload-api"})')" ]; }
 latency_metric()  { [ -n "$(promql 'count(http_request_duration_seconds_bucket{job="workload-api"})')" ]; }
@@ -71,6 +70,9 @@ check "Grafana reachable, admin login works" grafana_login
 check "Prometheus target workload-api UP (2/2)" target_up 12
 check "http_requests_total is queryable" requests_metric 12
 check "http_request_duration_seconds is queryable" latency_metric 12
+
+echo "Dashboard (AC-8)"
+check "Grafana dashboard 'workload-api' loaded from its ConfigMap" dashboard_loaded 12
 
 echo "Access from this machine"
 if curl -s -o /dev/null --max-time 5 "http://app.$VM_IP.nip.io/"; then

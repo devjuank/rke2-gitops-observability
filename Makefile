@@ -72,9 +72,13 @@ monitoring: ## Install kube-prometheus-stack via RKE2's helm-controller
 			--from-literal=admin-user=admin --from-literal=admin-password="$$(openssl rand -base64 18)"
 	@IP=$(VM_IP); sed "s/__VM_IP__/$$IP/g" deploy/monitoring/kube-prometheus-stack.yaml | $(KUBECTL) apply -f -
 	@echo "Waiting for helm-controller to install kube-prometheus-stack (first run: a few minutes)..."
+	@# When values change, helm-controller replaces the install job; give it a
+	@# moment so we don't wait on the previous, already-completed job.
+	@sleep 5
 	@for i in $$(seq 60); do $(KUBECTL) -n kube-system get job helm-install-kube-prometheus-stack >/dev/null 2>&1 && break; sleep 5; done
 	@$(KUBECTL) -n kube-system wait --for=condition=complete job/helm-install-kube-prometheus-stack --timeout=600s
 	@$(KUBECTL) -n monitoring wait --for=condition=Available deploy --all --timeout=600s
+	$(KUBECTL) apply -k deploy/monitoring/dashboards
 
 urls: ## Print the URLs of the app, Grafana and Prometheus
 	@IP=$(VM_IP); \

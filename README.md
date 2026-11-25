@@ -2,7 +2,7 @@
 
 A local single-node **RKE2** cluster on a Multipass VM, running a small Go service observed with **Prometheus + Grafana**, delivered through **GitHub Actions + Argo CD**. Built as a take-home DevOps exercise.
 
-> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **step 1 (VM + RKE2)** and **step 2 (Go app)**.
+> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–4** (VM + RKE2, Go app, image, app manifests).
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ Tested on macOS with Apple Silicon (arm64), 16 GB RAM.
 | Tool | Install | Used for |
 |---|---|---|
 | [Multipass](https://canonical.com/multipass) | `brew install --cask multipass` | The Ubuntu VM that runs RKE2 |
-| kubectl | `brew install kubectl` | Talking to the cluster from the host |
+| kubectl 1.35+ | `brew install kubectl` | Talking to the cluster (keep it within one minor version of RKE2 v1.36) |
 | make | Xcode Command Line Tools (`xcode-select --install`) | Entry point for every command |
 | Docker with buildx | Docker Desktop | Building the multi-arch app image (step 3) |
 | Go 1.27+ | Official installer from [go.dev/dl](https://go.dev/dl/) | Running the app's tests locally |
@@ -23,12 +23,20 @@ The VM needs 4 vCPU, 8 GB RAM and 40 GB of disk.
 ```sh
 make up                              # create the VM, install RKE2 via cloud-init (~5–10 min)
 export KUBECONFIG=$PWD/kubeconfig    # point kubectl at the cluster
-make status                          # node and pods
+make deploy                          # deploy the app; prints its URL
 ```
 
 `make up` launches the VM with [`infra/cloud-init.yaml`](infra/cloud-init.yaml), which installs a pinned RKE2 version and starts it. It then copies the cluster's admin kubeconfig to `./kubeconfig`, which is gitignored and points at the VM IP. Your `~/.kube/config` is not modified.
 
 Run `make help` to list all targets.
+
+### URLs
+
+Everything is exposed through RKE2's Traefik ingress on the VM's IP, using [nip.io](https://nip.io) names (`<name>.<VM-IP>.nip.io` resolves to `<VM-IP>`). The VM IP differs per machine; `make deploy` prints the right URLs.
+
+| Service | URL |
+|---|---|
+| App | `http://app.<VM-IP>.nip.io/` (also `http://<VM-IP>/`) |
 
 ## Verify
 
@@ -44,6 +52,19 @@ kubectl -n kube-system get pods | grep traefik      # ingress controller Running
 ```
 
 Some `helm-install-*` pods may show a few restarts. That's expected: those jobs retry until their CRDs are registered, then end in `Completed`.
+
+```sh
+# App (step 4)
+kubectl -n app get pods                             # 2/2 Running, READY 1/1
+curl http://app.<VM-IP>.nip.io/                     # 200, JSON with the pod's hostname
+```
+
+Zero-downtime rollout check: run a request loop and restart the Deployment in another terminal. No request should fail.
+
+```sh
+while true; do curl -s -o /dev/null -w '%{http_code}\n' http://<VM-IP>/; done | sort | uniq -c   # Ctrl-C after the rollout
+kubectl -n app rollout restart deploy/workload-api && kubectl -n app rollout status deploy/workload-api
+```
 
 ## The app: `workload-api`
 
@@ -87,11 +108,32 @@ docker buildx imagetools inspect ghcr.io/devjuank/workload-api:sha-$(git rev-par
 
 GitHub creates new packages as private. After the first push, set it to public once: Package settings → Change visibility → Public.
 
+### Kubernetes manifests
+
+[`deploy/app/`](deploy/app/) is plain YAML assembled with Kustomize (`kubectl apply -k`). The image tag is pinned in `kustomization.yaml`.
+
+- **Deployment:** 2 replicas; `RollingUpdate` with `maxSurge: 1`, `maxUnavailable: 0`, so a new pod must pass readiness before an old one is removed.
+- **Probes:** readiness on `/readyz` (every 2 s, fails fast to take the pod out of the Service), liveness on `/healthz` (every 10 s, 3 failures before a restart).
+- **Resources:** requests `50m` CPU / `64Mi`, limits `200m` / `128Mi`.
+- **Security:** namespace enforces Pod Security `restricted`; the container runs as UID 65532 with a read-only root filesystem, no privilege escalation and all capabilities dropped.
+- **Service + Ingress:** ClusterIP on port 80; a hostless Traefik Ingress, so it works whatever the VM IP is.
+
 ## Tear down
 
 ```sh
 make down    # delete the VM and ./kubeconfig
 ```
+
+## Troubleshooting
+
+**`*.nip.io` doesn't resolve** (`curl: (6) Could not resolve host`). Some routers drop public DNS answers that point to private IPs (DNS rebinding protection). `make deploy` detects this. One-time fix on macOS, which sends only `*.nip.io` lookups to Cloudflare's DNS and leaves everything else unchanged:
+
+```sh
+sudo mkdir -p /etc/resolver
+echo "nameserver 1.1.1.1" | sudo tee /etc/resolver/nip.io
+```
+
+Test with `curl` or a browser (`dig` ignores `/etc/resolver`). Undo with `sudo rm /etc/resolver/nip.io`. Alternatively, add the names to `/etc/hosts`.
 
 ## Docs
 

@@ -112,10 +112,10 @@ rke2-gitops-observability/
 - [x] Make the ghcr.io package public (no imagePullSecret needed)
 
 ### 4. App manifests (Kustomize, namespace `app`)
-- [ ] Deployment strategy: `RollingUpdate` with `maxSurge: 1`, `maxUnavailable: 0` (a new pod must pass readiness before an old one is removed → zero downtime)
-- [ ] Deployment: 2 replicas, `livenessProbe` → `/healthz`, `readinessProbe` → `/readyz`, requests/limits (e.g. 50m/64Mi → 200m/128Mi), securityContext (non-root, read-only rootfs)
-- [ ] Service (ClusterIP, named port `http`)
-- [ ] Ingress (`ingressClassName: traefik`, no `host`, so it works for any VM IP)
+- [x] Deployment strategy: `RollingUpdate` with `maxSurge: 1`, `maxUnavailable: 0` (a new pod must pass readiness before an old one is removed → zero downtime)
+- [x] Deployment: 2 replicas, `livenessProbe` → `/healthz`, `readinessProbe` → `/readyz`, requests/limits (e.g. 50m/64Mi → 200m/128Mi), securityContext (non-root, read-only rootfs)
+- [x] Service (ClusterIP, named port `http`)
+- [x] Ingress (`ingressClassName: traefik`, no `host`, so it works for any VM IP)
 
 ### 5. Monitoring
 - [ ] `HelmChart` for kube-prometheus-stack (namespace `monitoring`), applied by `make deploy`

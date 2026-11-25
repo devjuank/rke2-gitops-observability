@@ -200,7 +200,11 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 - **`kubectl port-forward`:** fine for debugging, but not "accessible" in a durable sense.
 - **LoadBalancer + MetalLB:** unnecessary on a single node with an Ingress controller already present.
 - **ingress-nginx on RKE2 v1.36** (`ingress-controller: ingress-nginx`) or **RKE2 v1.35** to keep it as default: both rely on a retired upstream project.
-- **Fixed hostnames + `/etc/hosts`:** works, but adds a manual step on the host.
+- **Fixed hostnames + `/etc/hosts`** (e.g. `*.rke2.test` with a `make hosts` target): cleaner URLs, but needs `sudo` on every machine and again whenever the VM IP changes.
+- **`*.localhost` + port-forward:** no DNS needed, but depends on a long-running `kubectl port-forward`.
+- **Local DNS server (dnsmasq):** an extra host tool and root service for every reviewer, and it still has to be edited when the VM IP changes.
+
+**Known issue: routers with DNS rebinding protection.** Some routers drop public DNS answers that point to private IPs, so `*.nip.io` doesn't resolve. The fix is a per-domain resolver on macOS, `/etc/resolver/nip.io` with `nameserver 1.1.1.1`: only `*.nip.io` lookups bypass the router, everything else (local names, VPN domains) is unchanged, and it keeps working when the VM IP changes. Changing the Mac's DNS globally was discarded for that reason. `make deploy` detects the problem and prints the fix; the app also answers on `http://<VM-IP>/` in the meantime.
 
 ---
 

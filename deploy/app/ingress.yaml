@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: workload-api
+  labels:
+    app.kubernetes.io/name: workload-api
+spec:
+  ingressClassName: traefik
+  # No `host`: the VM IP changes per machine, and this file is synced from Git.
+  # A hostless rule matches any hostname, so both http://<VM-IP>/ and
+  # http://app.<VM-IP>.nip.io/ work. See docs/DECISIONS.md §10.
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: workload-api
+                port:
+                  name: http

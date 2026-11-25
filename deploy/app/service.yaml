@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: workload-api
+  labels:
+    app.kubernetes.io/name: workload-api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: workload-api
+  ports:
+    # Named port: the Ingress and the ServiceMonitor (step 5) refer to it by name.
+    - name: http
+      port: 80
+      targetPort: http

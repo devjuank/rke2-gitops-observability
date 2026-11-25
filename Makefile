@@ -22,7 +22,7 @@ BUILDER   ?= multiarch
 REPO_URL  := https://github.com/devjuank/rke2-gitops-observability
 
 .DEFAULT_GOAL := help
-.PHONY: help up kubeconfig status down test run load image
+.PHONY: help up kubeconfig status down deploy dns-check test run load image
 
 help: ## Show available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -50,6 +50,27 @@ status: ## Show node and pod status
 down: ## Delete the VM and the local kubeconfig
 	multipass delete --purge $(VM)
 	rm -f $(KUBECONFIG_FILE)
+
+deploy: ## Apply the app manifests and wait for the rollout
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -k deploy/app
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n app rollout status deploy/workload-api --timeout=180s
+	@$(MAKE) --no-print-directory dns-check
+	@echo "App: http://app.$(VM_IP).nip.io/"
+
+# Some routers drop public DNS answers that point to private IPs ("DNS rebinding
+# protection"), which breaks nip.io. Detect it and print the one-time fix.
+dns-check: ## Check that <name>.<VM-IP>.nip.io resolves on this machine
+	@curl -s -o /dev/null --connect-timeout 5 "http://app.$(VM_IP).nip.io/"; \
+	if [ $$? -eq 6 ]; then \
+		echo ""; \
+		echo "WARNING: nip.io names don't resolve here (likely your router's DNS rebinding protection)."; \
+		echo "One-time fix on macOS (only *.nip.io lookups go to 1.1.1.1; everything else is unchanged):"; \
+		echo "  sudo mkdir -p /etc/resolver && echo 'nameserver 1.1.1.1' | sudo tee /etc/resolver/nip.io"; \
+		echo "Until then, the app also answers on http://$(VM_IP)/"; \
+		echo ""; \
+	else \
+		echo "nip.io resolves OK"; \
+	fi
 
 test: ## Vet and test the Go app (with the race detector)
 	cd app && go vet ./... && go test -race ./...

@@ -9,6 +9,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - servicemonitor.yaml # needs the Prometheus Operator CRDs (make deploy installs them first)
 
 # The only place the image tag lives. CI updates it with
 # `kustomize edit set image` (step 8). Always an immutable sha- tag, never latest.

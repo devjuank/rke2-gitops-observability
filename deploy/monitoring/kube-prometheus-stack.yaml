@@ -1,0 +1,101 @@
+# kube-prometheus-stack, installed by RKE2's built-in helm-controller.
+# Applied by `make deploy`, which replaces __VM_IP__ with the VM's IP so the
+# nip.io hostnames work on any machine. See docs/DECISIONS.md §7 and §10.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kube-prometheus-stack
+  namespace: kube-system
+spec:
+  repo: https://prometheus-community.github.io/helm-charts
+  chart: kube-prometheus-stack
+  version: 93.10.1
+  targetNamespace: monitoring
+  createNamespace: true
+  valuesContent: |-
+    # Alerting is out of scope (SPEC §4): no Alertmanager.
+    alertmanager:
+      enabled: false
+
+    # On RKE2, etcd, the scheduler, the controller-manager and kube-proxy only
+    # listen on 127.0.0.1, so these targets would always be DOWN. Scraping them
+    # needs RKE2 bind-address changes; left as a next step.
+    kubeEtcd:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+    kubeProxy:
+      enabled: false
+
+    prometheus:
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          - prometheus.__VM_IP__.nip.io
+      prometheusSpec:
+        scrapeInterval: 15s
+        # No persistent storage (out of scope): keep one day in memory/emptyDir.
+        retention: 1d
+        # Pick up ServiceMonitors/PodMonitors from every namespace, not only
+        # those labeled with this Helm release (the chart's default).
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 400Mi
+          limits:
+            memory: 1Gi
+
+    grafana:
+      # Admin credentials come from a Secret that `make deploy` creates with a
+      # random password. Nothing secret lives in Git.
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          - grafana.__VM_IP__.nip.io
+      # The sidecar loads every ConfigMap labeled grafana_dashboard: "1" (step 6).
+      sidecar:
+        dashboards:
+          enabled: true
+          label: grafana_dashboard
+          labelValue: "1"
+          searchNamespace: ALL
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi # grafana alone uses ~275Mi idle; headroom for dashboard rendering
+
+    prometheusOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+
+    kube-state-metrics:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+
+    prometheus-node-exporter:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi

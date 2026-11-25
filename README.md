@@ -2,29 +2,37 @@
 
 A local single-node **RKE2** cluster on a Multipass VM, running a small Go service observed with **Prometheus + Grafana**, delivered through **GitHub Actions + Argo CD**. Built as a take-home DevOps exercise.
 
-> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–4** (VM + RKE2, Go app, image, app manifests).
+> Work in progress: this README grows with each step of [`docs/PLAN.md`](docs/PLAN.md). Currently done: **steps 1–5** (VM + RKE2, Go app, image, app manifests, Prometheus + Grafana).
 
 ## Prerequisites
 
 Tested on macOS with Apple Silicon (arm64), 16 GB RAM.
+
+To run the project:
 
 | Tool | Install | Used for |
 |---|---|---|
 | [Multipass](https://canonical.com/multipass) | `brew install --cask multipass` | The Ubuntu VM that runs RKE2 |
 | kubectl 1.35+ | `brew install kubectl` | Talking to the cluster (keep it within one minor version of RKE2 v1.36) |
 | make | Xcode Command Line Tools (`xcode-select --install`) | Entry point for every command |
-| Docker with buildx | Docker Desktop | Building the multi-arch app image (step 3) |
+
+Only to develop the app (not needed to run it, the image is public):
+
+| Tool | Install | Used for |
+|---|---|---|
 | Go 1.27+ | Official installer from [go.dev/dl](https://go.dev/dl/) | Running the app's tests locally |
+| Docker with buildx | Docker Desktop | Building and publishing the multi-arch image |
 
 The VM needs 4 vCPU, 8 GB RAM and 40 GB of disk.
 
 ## Quick start
 
 ```sh
-make up                              # create the VM, install RKE2 via cloud-init (~5–10 min)
-export KUBECONFIG=$PWD/kubeconfig    # point kubectl at the cluster
-make deploy                          # deploy the app; prints its URL
+make up        # create the VM and install RKE2 via cloud-init (~5–10 min)
+make deploy    # monitoring stack + app (~3–5 min); prints the URLs
 ```
+
+That's all. To use `kubectl` yourself, point it at the cluster first: `export KUBECONFIG=$PWD/kubeconfig`.
 
 `make up` launches the VM with [`infra/cloud-init.yaml`](infra/cloud-init.yaml), which installs a pinned RKE2 version and starts it. It then copies the cluster's admin kubeconfig to `./kubeconfig`, which is gitignored and points at the VM IP. Your `~/.kube/config` is not modified.
 
@@ -37,6 +45,10 @@ Everything is exposed through RKE2's Traefik ingress on the VM's IP, using [nip.
 | Service | URL |
 |---|---|
 | App | `http://app.<VM-IP>.nip.io/` (also `http://<VM-IP>/`) |
+| Grafana | `http://grafana.<VM-IP>.nip.io/` (user `admin`, password from `make grafana-password`) |
+| Prometheus | `http://prometheus.<VM-IP>.nip.io/` |
+
+Run `make urls` to print them again.
 
 ## Verify
 
@@ -57,6 +69,13 @@ Some `helm-install-*` pods may show a few restarts. That's expected: those jobs 
 # App (step 4)
 kubectl -n app get pods                             # 2/2 Running, READY 1/1
 curl http://app.<VM-IP>.nip.io/                     # 200, JSON with the pod's hostname
+```
+
+```sh
+# Monitoring (step 5)
+kubectl -n monitoring get pods                      # all Running
+make grafana-password                               # then log in to Grafana as admin
+# Prometheus → Status → Targets: serviceMonitor/app/workload-api/0 shows 2/2 UP
 ```
 
 Zero-downtime rollout check: run a request loop and restart the Deployment in another terminal. No request should fail.
@@ -123,6 +142,14 @@ GitHub creates new packages as private. After the first push, set it to public o
 ```sh
 make down    # delete the VM and ./kubeconfig
 ```
+
+## Monitoring
+
+[`deploy/monitoring/kube-prometheus-stack.yaml`](deploy/monitoring/kube-prometheus-stack.yaml) is a `HelmChart` resource: RKE2's built-in helm-controller installs the chart (pinned version), so there's no `helm` CLI involved. `make deploy` applies it with the VM IP filled into the Grafana/Prometheus hostnames, waits for it, then deploys the app.
+
+- **Prometheus** scrapes every 15 s and keeps 1 day of data, with no persistent storage. It discovers `ServiceMonitor`s in all namespaces; the app's lives in [`deploy/app/servicemonitor.yaml`](deploy/app/servicemonitor.yaml).
+- **Grafana** comes with the chart's default Kubernetes dashboards. Its admin password is random, created by `make deploy` as a Kubernetes Secret, and never stored in Git.
+- **Not deployed:** Alertmanager (alerting is out of scope) and the etcd / scheduler / controller-manager / kube-proxy monitors (on RKE2 they listen only on `127.0.0.1`, so they would always show as DOWN).
 
 ## Troubleshooting
 

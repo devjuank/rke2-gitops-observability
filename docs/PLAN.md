@@ -21,7 +21,7 @@ Build a small, reproducible **local Kubernetes environment with RKE2**. Deploy a
      ├── HelmChart CRs (kubectl apply by make deploy) ← reconciled by RKE2's helm-controller
      │    ├── kube-prometheus-stack (HelmChart)
      │    └── argo-cd (HelmChart)
-     ├── ns: monitoring → Prometheus, Grafana, Alertmanager, node-exporter, kube-state-metrics
+     ├── ns: monitoring → Prometheus, Grafana, node-exporter, kube-state-metrics (no Alertmanager)
      ├── ns: argocd     → Argo CD (syncs deploy/app from GitHub)
      └── ns: app        → Go service (Deployment, Service, Ingress, ServiceMonitor)
 
@@ -118,10 +118,10 @@ rke2-gitops-observability/
 - [x] Ingress (`ingressClassName: traefik`, no `host`, so it works for any VM IP)
 
 ### 5. Monitoring
-- [ ] `HelmChart` for kube-prometheus-stack (namespace `monitoring`), applied by `make deploy`
-- [ ] ServiceMonitor for `workload-api` added to `deploy/app` (its CRD only exists after this step)
-- [ ] Values: Grafana Ingress (`grafana.<VM-IP>.nip.io`), ServiceMonitor discovery across namespaces, modest resource requests
-- [ ] Verify the target shows **UP** in Prometheus → Status → Targets
+- [x] `HelmChart` for kube-prometheus-stack (namespace `monitoring`), applied by `make deploy`
+- [x] ServiceMonitor for `workload-api` added to `deploy/app` (its CRD only exists after this step)
+- [x] Values: Grafana + Prometheus Ingress (`grafana.` / `prometheus.<VM-IP>.nip.io`), ServiceMonitor discovery across namespaces, modest resource requests, Alertmanager off
+- [x] Verify the target shows **UP** in Prometheus → Status → Targets
 
 ### 6. Grafana dashboard (as code)
 - [ ] ConfigMap labeled `grafana_dashboard: "1"` with the dashboard JSON

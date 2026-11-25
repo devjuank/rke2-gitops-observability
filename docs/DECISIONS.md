@@ -107,7 +107,7 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 
 ## 7. Prometheus + Grafana: kube-prometheus-stack via RKE2's HelmChart
 
-**Chosen:** the community `kube-prometheus-stack` chart, declared as a `HelmChart` manifest in `/var/lib/rancher/rke2/server/manifests/` so RKE2's built-in **helm-controller** installs it automatically.
+**Chosen:** the community `kube-prometheus-stack` chart (pinned to 93.10.1), declared as a `HelmChart` resource so RKE2's built-in **helm-controller** installs it.
 
 **Why**
 - One chart gives Prometheus, the Prometheus Operator, Grafana, Alertmanager, node-exporter, kube-state-metrics and default cluster dashboards. That covers infrastructure metrics out of the box.
@@ -118,6 +118,14 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 **Discarded**
 - **`helm install` from the Mac:** works, but it's an imperative step outside the repo's declarative flow.
 - **Raw Prometheus/Grafana manifests or separate charts:** more work, and no Operator or ServiceMonitor.
+
+**Chart values worth noting**
+- **Alertmanager disabled:** alerting is out of scope (SPEC §4). It saves memory and a component nobody would use. SLO-based alerting is in the production next steps.
+- **etcd, scheduler, controller-manager and kube-proxy monitors disabled:** on RKE2 they bind their metrics endpoints to `127.0.0.1`, so Prometheus would always show them as DOWN. Enabling them means changing RKE2's bind addresses, which adds nothing to what the exercise asks for.
+- **`serviceMonitorSelectorNilUsesHelmValues: false`:** by default the chart only picks up ServiceMonitors labeled with its own release name. Turning it off lets any namespace's ServiceMonitor be discovered, so the app doesn't need to know about the monitoring release.
+- **No persistence, 1-day retention:** persistent storage is out of scope; data is lost if the Prometheus pod restarts.
+- **Grafana admin password:** `make deploy` creates a Kubernetes Secret with a random password the first time, and the chart reads it via `admin.existingSecret`. Nothing secret is stored in Git, and there is no well-known default password.
+- **Prometheus Ingress:** exposed at `prometheus.<VM-IP>.nip.io` so the Targets page (AC-7) and ad-hoc queries are reachable without `port-forward`.
 
 ---
 

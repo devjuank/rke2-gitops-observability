@@ -6,6 +6,7 @@ CPUS            ?= 4
 MEM             ?= 8G
 DISK            ?= 40G
 KUBECONFIG_FILE := $(CURDIR)/kubeconfig
+KUBECTL         := KUBECONFIG=$(KUBECONFIG_FILE) kubectl
 
 # Primary IPv4 of the VM (first one listed; CNI interfaces appear after it).
 VM_IP = $$(multipass info $(VM) | awk '/IPv4/ {print $$2; exit}')
@@ -22,10 +23,10 @@ BUILDER   ?= multiarch
 REPO_URL  := https://github.com/devjuank/rke2-gitops-observability
 
 .DEFAULT_GOAL := help
-.PHONY: help up kubeconfig status down deploy dns-check test run load image
+.PHONY: help up kubeconfig status down deploy monitoring urls grafana-password dns-check test run load image
 
 help: ## Show available targets
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
 up: ## Create the VM, install RKE2 via cloud-init, fetch kubeconfig
 	@command -v multipass >/dev/null || { echo "multipass not found: brew install --cask multipass"; exit 1; }
@@ -44,18 +45,42 @@ kubeconfig: ## Copy the admin kubeconfig to ./kubeconfig, pointing at the VM IP
 	@echo "Wrote $(KUBECONFIG_FILE). Run: export KUBECONFIG=$(KUBECONFIG_FILE)"
 
 status: ## Show node and pod status
-	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get nodes -o wide
-	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get pods -A
+	@$(KUBECTL) get nodes -o wide
+	@$(KUBECTL) get pods -A
 
 down: ## Delete the VM and the local kubeconfig
 	multipass delete --purge $(VM)
 	rm -f $(KUBECONFIG_FILE)
 
-deploy: ## Apply the app manifests and wait for the rollout
-	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -k deploy/app
-	KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n app rollout status deploy/workload-api --timeout=180s
+deploy: monitoring ## Install monitoring, then the app; prints the URLs
+	$(KUBECTL) apply -k deploy/app
+	$(KUBECTL) -n app rollout status deploy/workload-api --timeout=180s
 	@$(MAKE) --no-print-directory dns-check
-	@echo "App: http://app.$(VM_IP).nip.io/"
+	@$(MAKE) --no-print-directory urls
+
+# kube-prometheus-stack goes first: the app's ServiceMonitor needs its CRDs.
+monitoring: ## Install kube-prometheus-stack via RKE2's helm-controller
+	@$(KUBECTL) create namespace monitoring --dry-run=client -o yaml | $(KUBECTL) apply -f - >/dev/null
+	@# Grafana admin password: random, created once, never stored in Git.
+	@$(KUBECTL) -n monitoring get secret grafana-admin >/dev/null 2>&1 || \
+		$(KUBECTL) -n monitoring create secret generic grafana-admin \
+			--from-literal=admin-user=admin --from-literal=admin-password="$$(openssl rand -base64 18)"
+	@IP=$(VM_IP); sed "s/__VM_IP__/$$IP/g" deploy/monitoring/kube-prometheus-stack.yaml | $(KUBECTL) apply -f -
+	@echo "Waiting for helm-controller to install kube-prometheus-stack (first run: a few minutes)..."
+	@for i in $$(seq 60); do $(KUBECTL) -n kube-system get job helm-install-kube-prometheus-stack >/dev/null 2>&1 && break; sleep 5; done
+	@$(KUBECTL) -n kube-system wait --for=condition=complete job/helm-install-kube-prometheus-stack --timeout=600s
+	@$(KUBECTL) -n monitoring wait --for=condition=Available deploy --all --timeout=600s
+
+urls: ## Print the URLs of the app, Grafana and Prometheus
+	@IP=$(VM_IP); \
+	echo ""; \
+	echo "  App:        http://app.$$IP.nip.io/"; \
+	echo "  Grafana:    http://grafana.$$IP.nip.io/   (user: admin, password: make grafana-password)"; \
+	echo "  Prometheus: http://prometheus.$$IP.nip.io/"; \
+	echo ""
+
+grafana-password: ## Print the Grafana admin password
+	@$(KUBECTL) -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d; echo
 
 # Some routers drop public DNS answers that point to private IPs ("DNS rebinding
 # protection"), which breaks nip.io. Detect it and print the one-time fix.

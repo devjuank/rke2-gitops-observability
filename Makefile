@@ -14,8 +14,15 @@ VM_IP = $$(multipass info $(VM) | awk '/IPv4/ {print $$2; exit}')
 # override for a local run: make load URL=http://localhost:8080
 URL ?= http://$(VM_IP)
 
+# App image. The tag is the current commit, so every image traces back to its source.
+IMAGE     ?= ghcr.io/devjuank/workload-api
+TAG       ?= sha-$(shell git rev-parse --short HEAD)
+PLATFORMS ?= linux/arm64,linux/amd64
+BUILDER   ?= multiarch
+REPO_URL  := https://github.com/devjuank/rke2-gitops-observability
+
 .DEFAULT_GOAL := help
-.PHONY: help up kubeconfig status down test run load
+.PHONY: help up kubeconfig status down test run load image
 
 help: ## Show available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -57,3 +64,12 @@ load: ## Send traffic to / and /work until Ctrl-C (URL=... to override)
 		curl -s -o /dev/null "$(URL)/"; \
 		wait; \
 	done
+
+image: ## Build and push the multi-arch app image (needs: docker login ghcr.io)
+	@git diff --quiet HEAD -- app/ || { echo "app/ has uncommitted changes: commit first so $(TAG) matches the source"; exit 1; }
+	@# The default "docker" driver can't push multi-platform images; docker-container can.
+	@docker buildx inspect $(BUILDER) >/dev/null 2>&1 || docker buildx create --name $(BUILDER) --driver docker-container >/dev/null
+	docker buildx build --builder $(BUILDER) --platform $(PLATFORMS) \
+		--build-arg VERSION=$(TAG) \
+		--label org.opencontainers.image.source=$(REPO_URL) \
+		-t $(IMAGE):$(TAG) --push app/

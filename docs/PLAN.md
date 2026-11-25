@@ -108,8 +108,8 @@ rke2-gitops-observability/
 - [x] Multi-stage Dockerfile → `gcr.io/distroless/static:nonroot`
 
 ### 3. Image
-- [ ] `docker buildx build --platform linux/arm64,linux/amd64 -t ghcr.io/<user>/workload-api:<tag> --push app/`
-- [ ] Make the ghcr.io package public (no imagePullSecret needed)
+- [x] `docker buildx build --platform linux/arm64,linux/amd64 -t ghcr.io/<user>/workload-api:<tag> --push app/`
+- [x] Make the ghcr.io package public (no imagePullSecret needed)
 
 ### 4. App manifests (Kustomize, namespace `app`)
 - [ ] Deployment strategy: `RollingUpdate` with `maxSurge: 1`, `maxUnavailable: 0` (a new pod must pass readiness before an old one is removed → zero downtime)

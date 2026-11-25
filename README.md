@@ -73,6 +73,20 @@ make load URL=http://localhost:8080    # traffic to / and /work (Ctrl-C to stop)
 docker build -t workload-api:dev app/  # multi-stage → distroless/static, non-root
 ```
 
+### Container image
+
+The image is public at `ghcr.io/devjuank/workload-api`, built for `linux/arm64` and `linux/amd64`, and tagged `sha-<commit>` (never `latest` in manifests). You don't need to build it to run this project.
+
+To publish it yourself (maintainers only):
+
+```sh
+echo <PAT with write:packages> | docker login ghcr.io -u <user> --password-stdin
+make image                                  # buildx → ghcr.io/devjuank/workload-api:sha-<commit>
+docker buildx imagetools inspect ghcr.io/devjuank/workload-api:sha-$(git rev-parse --short HEAD)
+```
+
+GitHub creates new packages as private. After the first push, set it to public once: Package settings → Change visibility → Public.
+
 ## Tear down
 
 ```sh

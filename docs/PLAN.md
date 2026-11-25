@@ -143,7 +143,7 @@ rke2-gitops-observability/
 ### 7. Argo CD (GitOps)
 - [x] `HelmChart` for argo-cd (namespace `argocd`)
 - [x] `Application` → repo `deploy/app`, `automated: {prune: true, selfHeal: true}`
-- [ ] Demo: change replicas/image tag in Git → cluster converges automatically
+- [x] Demo: change replicas/image tag in Git → cluster converges automatically (`WORK_ERROR_RATE` 0.05 → 0.10)
 
 ### 8. CI/CD (GitHub Actions + Argo CD)
 - [ ] Trigger: push to `main` with changes under `app/` (`paths: ["app/**"]`), so the bot's own commit to `deploy/` doesn't retrigger the build

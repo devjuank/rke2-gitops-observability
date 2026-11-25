@@ -43,7 +43,7 @@ spec:
             - name: WORK_MAX_LATENCY_MS
               value: "500"
             - name: WORK_ERROR_RATE
-              value: "0.05"
+              value: "0.10"
             - name: STARTUP_DELAY_SECONDS
               value: "5" # makes readiness gating visible during rollouts
           # Readiness: gates traffic. Probed often and fails fast, so a pod leaves

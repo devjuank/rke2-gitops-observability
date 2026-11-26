@@ -146,22 +146,22 @@ rke2-gitops-observability/
 - [x] Demo: change replicas/image tag in Git → cluster converges automatically (`WORK_ERROR_RATE` 0.05 → 0.10)
 
 ### 8. CI/CD (GitHub Actions + Argo CD)
-- [ ] `main` protected by a ruleset: PR required, `checks` jobs required, squash only, no force-push/deletion, no bypass
-- [ ] Trigger: push to `main` with changes under `app/` (`paths: ["app/**"]`), so the deploy PR (only `deploy/app`) doesn't retrigger the build
-- [ ] Job 1 — checks: reuse `checks.yml` (`workflow_call`)
-- [ ] Job 2 — build & push: `docker/setup-buildx-action` (no QEMU: the Dockerfile cross-compiles), `docker/login-action` to ghcr.io with `GITHUB_TOKEN`, `docker/build-push-action` for `linux/arm64,linux/amd64`, tags `sha-<short>` and `latest`
-- [ ] Job 3 — deploy PR: `kustomize edit set image` in `deploy/app`, open a PR as a GitHub App (`actions/create-github-app-token`) with auto-merge
-- [ ] Permissions: `packages: write` for the image (`GITHUB_TOKEN`); App token (Contents + Pull requests) for the deploy PR
-- [ ] Argo CD auto-sync picks up the new tag (default polling ~3 min; `argocd app sync` or a refresh from the UI makes it instant for the demo)
-- [ ] First change shipped through the pipeline: histogram buckets matched to `/work`'s 10–500 ms range (the default buckets jump from 0.5 s to 1 s, so p99 is over-estimated; see README → Dashboard)
-- [ ] Never deploy `latest`: the manifest always pins the immutable `sha-` tag, so every deploy is traceable to a commit and easy to roll back (`git revert`)
+- [x] `main` protected by a ruleset: PR required, `checks` jobs required, squash only, no force-push/deletion, no bypass
+- [x] Trigger: push to `main` with changes under `app/` (`paths: ["app/**"]`), so the deploy PR (only `deploy/app`) doesn't retrigger the build
+- [x] Job 1 — checks: reuse `checks.yml` (`workflow_call`)
+- [x] Job 2 — build & push: `docker/setup-buildx-action` (no QEMU: the Dockerfile cross-compiles), `docker/login-action` to ghcr.io with `GITHUB_TOKEN`, `docker/build-push-action` for `linux/arm64,linux/amd64`, tags `sha-<short>` and `latest`
+- [x] Job 3 — deploy PR: `kustomize edit set image` in `deploy/app`, open a PR as a GitHub App (`actions/create-github-app-token`) with auto-merge
+- [x] Permissions: `packages: write` for the image (`GITHUB_TOKEN`); App token (Contents + Pull requests) for the deploy PR
+- [x] Argo CD auto-sync picks up the new tag (default polling ~3 min; `argocd app sync` or a refresh from the UI makes it instant for the demo)
+- [x] First change shipped through the pipeline: histogram buckets matched to `/work`'s 10–500 ms range (the default buckets jump from 0.5 s to 1 s, so p99 is over-estimated; see README → Dashboard)
+- [x] Never deploy `latest`: the manifest always pins the immutable `sha-` tag, so every deploy is traceable to a commit and easy to roll back (`git revert`)
 
 ### 9. README
-- [ ] Prerequisites and `make up && make deploy`
-- [ ] Architecture diagram and component overview
-- [ ] Key decisions and assumptions (summary of `DECISIONS.md`)
-- [ ] How to verify (URLs, commands)
-- [ ] What I'd do for production (next steps)
+- [x] Prerequisites and `make up && make deploy`
+- [x] Architecture diagram and component overview
+- [x] Key decisions and assumptions (summary of `DECISIONS.md`)
+- [x] How to verify (URLs, commands)
+- [x] What I'd do for production (next steps)
 
 ### 10. Walkthrough prep
 - [ ] Environment running before the call; tabs open: terminal (`kubectl get pods -A`), app, Prometheus targets, Grafana dashboard, Argo CD

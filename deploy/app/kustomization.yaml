@@ -1,4 +1,13 @@
-# workload-api in namespace `app`. Applied by `make deploy` (and by Argo CD from step 7).
+# workload-api in namespace `app`. Deployed by Argo CD from the main branch
+# (deploy/argocd/application.yaml); don't kubectl apply it.
+#
+# The image tag below is the only thing that changes per release: the release
+# workflow bumps it with `kustomize edit set image` in a deploy PR. Always an
+# immutable sha- tag, never latest.
+#
+# Keep comments up here: `kustomize edit` rewrites the body and drops inline ones.
+# servicemonitor.yaml needs the Prometheus Operator CRDs, which `make deploy`
+# installs before Argo CD.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -11,8 +20,6 @@ resources:
 - ingress.yaml
 - servicemonitor.yaml
 
-# The only place the image tag lives. CI updates it with
-# `kustomize edit set image` (step 8). Always an immutable sha- tag, never latest.
 images:
 - name: ghcr.io/devjuank/workload-api
   newTag: sha-1152fcd

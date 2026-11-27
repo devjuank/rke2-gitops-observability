@@ -231,11 +231,16 @@ Out of scope for a local exercise, and what I'd do next:
 
 - **Topology:** 3 control-plane nodes (etcd quorum) plus dedicated workers, provisioned with Terraform and bootstrapped with the same cloud-init; Ansible for OS day-2 operations (patching, hardening).
 - **Upgrades:** RKE2 with Rancher's System Upgrade Controller (declarative, node by node, cordon/drain).
+- **Multi-cluster / hybrid:** Argo CD ApplicationSets targeting every cluster (e.g. on-prem RKE2 and a managed cloud cluster such as AKS or EKS), Kustomize overlays per cluster for the differences (ingress class, storage, replicas), the same multi-arch images everywhere.
 - **Progressive delivery:** Argo Rollouts canary (20% → 50% → 100%) with automated analysis against Prometheus (error rate, p95) and automatic rollback; blue-green where an instant switch is needed.
 - **GitOps at scale:** a separate config repository with environment promotion through PRs; Argo CD managing the platform too (app of apps: monitoring, dashboards, Traefik settings).
-- **Observability:** persistent storage and retention for Prometheus/Grafana (Longhorn or a CSI driver), long-term storage (Thanos / remote write), SLO-based alerting via Alertmanager, logs with Loki, scraping RKE2's control-plane components.
+- **Metrics:** persistent storage for Prometheus (Longhorn or a CSI driver) and long-term storage with Thanos or Mimir on object storage (S3 / Azure Blob / MinIO), with a single view across clusters; SLO-based alerting via Alertmanager; scraping RKE2's control-plane components.
+- **Traces:** OpenTelemetry in the Go service (`otelhttp`) → OpenTelemetry Collector → Grafana Tempo, with exemplars to jump from a latency spike on the dashboard to the exact trace. Metrics could move to OTLP too, so one SDK covers both.
+- **Logs:** the app already writes structured JSON logs (`slog`); ship them with Grafana Alloy (DaemonSet) to Loki, add Loki as a Grafana datasource and, once tracing is in, include the trace ID in every log line.
+- **Ingress:** move to the Gateway API, Ingress's successor (Traefik supports it).
 - **Security:** TLS with cert-manager, NetworkPolicies, SSO for Grafana and Argo CD, secrets via External Secrets / Sealed Secrets, images pinned by digest, signed (cosign) and scanned (Trivy), GitHub Actions pinned by commit SHA.
 - **CI:** an end-to-end job that installs RKE2 on the runner and runs `make deploy && make verify`.
+- **AI quality gate:** on every PR, deterministic checks first, then an LLM reviewer that gets the diff plus the repo's context (`CLAUDE.md`, SPEC, DECISIONS) and decides approve, comment, ask for human review or block. It's measured against human-reviewed PRs before it can block a merge.
 
 ## Troubleshooting
 

@@ -5,7 +5,7 @@
 
 ## 1. Context
 
-Part of the target stack runs **Kubernetes on RKE2**, **Go services**, **Prometheus** and **Grafana**. The exercise evaluates how a DevOps problem is approached: the **technical decisions** and how clearly they are **communicated**. It is **not** expected to be production-ready. Expected effort is 5–10 hours.
+The exercise is built around **Kubernetes on RKE2**, **Go services**, **Prometheus** and **Grafana**. It evaluates how a DevOps problem is approached: the **technical decisions** and how clearly they are **communicated**. It is **not** expected to be production-ready. Expected effort is 5–10 hours.
 
 ## 2. Functional requirements
 
@@ -27,7 +27,7 @@ Part of the target stack runs **Kubernetes on RKE2**, **Go services**, **Prometh
 | ID | Requirement | Rationale |
 |---|---|---|
 | EX-1 | The Go service exposes a **simulated workload** (`/work`) with random latency and a configurable error rate. | Makes the dashboard meaningful (latency percentiles, errors) |
-| EX-2 | **GitOps delivery** with Argo CD: the cluster state comes from Git, with auto-sync and self-heal. | Addresses the team's deployment pain point |
+| EX-2 | **GitOps delivery** with Argo CD: the cluster state comes from Git, with auto-sync and self-heal. | Makes delivery declarative, auditable and self-correcting |
 | EX-3 | **CI/CD**: on code change, CI tests, builds and publishes a multi-arch image and updates the image tag in Git, and Argo CD deploys it. | End-to-end delivery without CI reaching the cluster |
 | EX-4 | **Zero-downtime** rollouts (readiness-gated rolling update). | Shows probes and deployments working together |
 

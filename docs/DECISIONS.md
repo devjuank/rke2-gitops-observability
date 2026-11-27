@@ -43,7 +43,7 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 
 **Why**
 - It runs automatically on first boot, with no SSH, inventory or control machine. VM and cluster come up with one command.
-- It's the standard bootstrap mechanism across clouds (EC2 `user_data`, Azure `custom_data`), so the same file is portable to their Azure servers.
+- It's the standard bootstrap mechanism across clouds (EC2 `user_data`, Azure `custom_data`), so the same file is portable to Azure VMs.
 - Rancher itself and Cluster API provision nodes with cloud-init.
 - With one node and one install, Ansible's strengths (ordering across nodes, idempotent re-runs) aren't needed.
 
@@ -151,7 +151,7 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 **Why**
 - Git is the source of truth: a commit changes the cluster, and manual drift is reverted automatically.
 - No cluster credentials are needed in CI. The cluster pulls from GitHub. This matters here because GitHub Actions can't reach a VM on a laptop.
-- It aligns with the team's pain point around **deployments**.
+- It makes **deployments** the strongest part of the setup: declarative, audited in Git and self-correcting.
 
 **Discarded**
 - **`kubectl apply` from a Makefile only:** simplest. It stays as a fallback (`make deploy`), but it's push-based and drift isn't corrected.
@@ -197,7 +197,7 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 
 **Why**
 - Broken YAML is caught before Argo CD tries to apply it; with GitOps, Git is the deploy, so validating Git is validating the deploy.
-- Separate from the release workflow (step 8): release only runs on `app/**` changes to avoid a loop with its own tag-bump commit, but manifests and scripts change too and need checking. A workflow that never writes can run on everything without looping.
+- Separate from the release workflow (step 8): release only runs on `app/**` changes to avoid a loop with its own deploy PR, but manifests and scripts change too and need checking. A workflow that never writes can run on everything without looping.
 - `contents: read` only; no secrets involved.
 - GitHub-hosted runners are free for public repositories; the workflow takes about 2 minutes.
 
@@ -218,7 +218,7 @@ Short decision records: what was chosen, what was discarded, and why. The exerci
 - **Canary / blue-green with Argo Rollouts:** not native to Kubernetes. They need the Argo Rollouts controller and a `Rollout` resource instead of a `Deployment`, plus traffic splitting through the ingress. That's valuable, but it's more work than this exercise needs.
 - **Recreate:** causes downtime. Only useful when two versions can't run at the same time.
 
-**Next step:** Argo Rollouts (it integrates with Argo CD) with a **canary + Prometheus analysis**. Send ~20% of traffic to the new version, query the error rate and p95 latency from Prometheus, promote automatically if they stay within the SLO, and **roll back automatically** if they don't. This connects the deployment pain point with the observability work. Use blue-green for changes that need an instant cut-over and a fast switch back.
+**Next step:** Argo Rollouts (it integrates with Argo CD) with a **canary + Prometheus analysis**. Send ~20% of traffic to the new version, query the error rate and p95 latency from Prometheus, promote automatically if they stay within the SLO, and **roll back automatically** if they don't. This connects deployments with the observability work. Use blue-green for changes that need an instant cut-over and a fast switch back.
 
 ---
 

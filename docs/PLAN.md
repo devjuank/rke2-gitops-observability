@@ -27,12 +27,12 @@ Build a small, reproducible **local Kubernetes environment with RKE2**. Deploy a
 
  GitHub
  ├── repo: source, manifests, README
- ├── Actions: test → build multi-arch image → push → bump image tag in deploy/app (commit)
+ ├── Actions: checks → build multi-arch image → push → deploy PR bumping the image tag in deploy/app
  └── ghcr.io: container image (public)
 
  CI/CD flow (pull-based GitOps):
- git push (app/) → Actions: test + build + push ghcr.io:<sha> → commit new tag to deploy/app/kustomization.yaml
-                 → Argo CD (inside the VM) detects the Git change → syncs → rolling update
+ PR merged (app/) → Actions: checks + build + push ghcr.io:<sha> → deploy PR with the new tag in deploy/app/kustomization.yaml
+                  → checks pass → auto-merge → Argo CD (inside the VM) detects the Git change → syncs → rolling update
 ```
 
 ## Decided components
@@ -51,11 +51,11 @@ Build a small, reproducible **local Kubernetes environment with RKE2**. Deploy a
 | Dashboard | Grafana dashboard JSON in a **ConfigMap** (sidecar auto-loads it) |
 | Delivery | **Argo CD** Application → `deploy/app` (auto-sync + self-heal) |
 | Access from Mac | **Ingress** (hostless for the app) + **nip.io** hostnames on the VM IP for Grafana/Argo CD |
-| CI/CD | **GitHub Actions** (test → multi-arch build → push to ghcr.io → commit new tag to `deploy/app`) + **Argo CD** pulls and deploys |
+| CI/CD | **GitHub Actions** (checks → multi-arch build → push to ghcr.io → deploy PR with the new tag in `deploy/app`, auto-merged on a protected `main`) + **Argo CD** pulls and deploys |
 
 ## Naming
 
-- **Repository:** `rke2-gitops-observability`. It's a neutral name with no company branding, so it can live on as a public portfolio project. The README says "Built as a take-home exercise" without naming the company.
+- **Repository:** `rke2-gitops-observability`. It's a neutral, descriptive name, so it can live on as a public portfolio project.
 - **Go service / image:** `workload-api` → `ghcr.io/<user>/workload-api`
 
 ## Repository layout
@@ -163,12 +163,6 @@ rke2-gitops-observability/
 - [x] How to verify (URLs, commands)
 - [x] What I'd do for production (next steps)
 
-### 10. Walkthrough prep
-- [ ] Environment running before the call; tabs open: terminal (`kubectl get pods -A`), app, Prometheus targets, Grafana dashboard, Argo CD
-- [ ] CD demo: change the response in `app/main.go` → push → Actions builds and bumps the tag → Argo CD syncs → new pods roll out with no downtime (readiness gates the traffic) → `curl` shows the new response
-- [ ] Short live demo: `make load` → dashboard moves (RPS, p95/p99, error %); raise `WORK_ERROR_RATE` in Git → Argo CD syncs → error panel climbs; restart a pod with `STARTUP_DELAY_SECONDS` → it stays out of the Service until `/readyz` is 200
-- [ ] Send repo + README to the reviewer at least 30 min before the meeting
-
 ## Acceptance criteria (definition of done per step)
 
 A step is done only when its checks pass. Run them, paste the output and commit.
@@ -183,7 +177,7 @@ A step is done only when its checks pass. Run them, paste the output and commit.
 | 6. Dashboard | Dashboard auto-loaded from the ConfigMap (no manual import); all 6 panels show data while `make load` runs | Grafana UI |
 | 7a. CI checks | `checks` workflow green on `main`; a broken manifest on a branch turns it red | `gh run list --workflow checks.yml`, Actions tab |
 | 7. Argo CD | Application `Synced` + `Healthy`; a manual `kubectl scale` is reverted by self-heal; a Git change to `deploy/app` is applied without `kubectl` | `kubectl -n argocd get applications`, Argo CD UI |
-| 8. CI/CD | Push to `app/` → workflow green → bot commit bumps the `sha-` tag → Argo CD rolls out the new image (< ~5 min, or instant with Refresh); no workflow loop | GitHub Actions UI, `kubectl -n app get deploy -o jsonpath='{..image}'` |
+| 8. CI/CD | PR touching `app/` merged → release green → bot's deploy PR bumps the `sha-` tag and auto-merges → Argo CD rolls out the new image (< ~5 min, or instant with Refresh); no workflow loop | GitHub Actions UI, `kubectl -n app get deploy -o jsonpath='{..image}'` |
 | 9. README | A fresh reader can reproduce with `make up && make deploy` following only the README | Read it top to bottom on a clean VM (`make down && make up`) |
 | End-to-end | `make down && make up && make deploy` rebuilds everything from zero with no manual steps besides the documented prerequisites | Full rebuild before submitting |
 
@@ -199,7 +193,7 @@ Priority: what the exercise explicitly asks for comes first. Extras come after.
 6. README
 7. CI checks *(extra, validation only)*
 8. Argo CD *(extra)*
-9. GitHub Actions CI/CD with tag bump → Argo CD *(extra, builds on Argo CD)*
+9. GitHub Actions CI/CD with deploy PRs → Argo CD *(extra, builds on Argo CD)*
 
 ## Production next steps (for the README)
 
